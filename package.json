@@ -1,0 +1,8 @@
+{
+  "name": "booking",
+  "packageManager": "yarn@4.0.1",
+  "dependencies": {
+    "express": "^4.18.2",
+    "mysql2": "^3.6.3"
+  }
+}
