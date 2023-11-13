@@ -58,9 +58,9 @@ const connection = mysql.createPool({
 
 // const createReservation = `CREATE TABLE IF NOT EXISTS reservation (
 //    ID INT AUTO_INCREMENT PRIMARY KEY,
-//    venueID INT,
+//    eventID INT,
 //    userID INT,
-//    FOREIGN KEY (venueID) REFERENCES venues(ID) ON DELETE CASCADE ON UPDATE CASCADE,
+//    FOREIGN KEY (eventID) REFERENCES events(ID) ON DELETE CASCADE ON UPDATE CASCADE,
 //    FOREIGN KEY (userID) REFERENCES users(ID) ON DELETE CASCADE ON UPDATE CASCADE
 //     )`;
 // connection.promise().query(createReservation)
