@@ -1,9 +1,13 @@
 const connection = require('../config/database');
+const cloudinary = require('../cloudinary');
 
 exports.createVenue = async (req, res) => {
     try {
-        const { name, description, capacity, image, address } = req.body;
-        const query = `INSERT INTO venues (name, description, capacity, image, address) VALUES ('${name}','${description}','${capacity}','${image}', '${address}')`;
+        const { name, description, capacity, address } = req.body;
+        const b64 = req.file.buffer.toString('base64');
+        let image = 'data:' + req.file.mimetype + ';base64,' + b64;
+        const url = await cloudinary.uploader.upload(image, { folder: 'venues' })
+        const query = `INSERT INTO venues (name, description, capacity, image, address) VALUES ('${name}','${description}',${capacity},'${url.secure_url}', '${address}')`;
         const [result] = await connection.promise().query(query);
         res.status(200).json('Venue added successfully');
     } catch (error) {
@@ -39,7 +43,10 @@ exports.updateVenue = async (req, res) => {
     const ID = req.params.ID;
     const { name, description, capacity, image, address } = req.body;
     try {
-        const query = ` UPDATE venues SET name ='${name}', description = '${description}', capacity = '${capacity}', image='${image}', address='${address}' WHERE ID=${ID}`;
+        const b64 = req.file.buffer.toString('base64');
+        let image = 'data:' + req.file.mimetype + ';base64,' + b64;
+        const url = await cloudinary.uploader.upload(image, { folder: 'venues' })
+        const query = ` UPDATE venues SET name ='${name}', description = '${description}', capacity = '${capacity}', image='${url.secure_url}', address='${address}' WHERE ID=${ID}`;
         const [result] = await connection.promise().query(query);
         res.status(200).json(result);
     } catch (error) {
