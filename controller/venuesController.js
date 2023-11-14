@@ -1,5 +1,5 @@
 const connection = require('../config/database');
-const cloudinary = require('../cloudinary');
+const cloudinary = require('../config/cloudinary');
 
 exports.createVenue = async (req, res) => {
     try {
