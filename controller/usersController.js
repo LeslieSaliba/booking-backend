@@ -57,14 +57,15 @@ exports.login = async (req, res) => {
                 message: `Couldn't find any user linked to ${email} `,
             });
 
-            const user = response[0];
-            const passwordMatch = await bcrypt.compare(password, user.password);
+        const user = response[0];
+        const passwordMatch = await bcrypt.compare(password, user.password);
 
         if (passwordMatch) {
             const token = jwt.sign(user, process.env.SECRET_VALUE, { expiresIn: '12h' });
             res.status(200).json({
                 success: true,
                 message: `User linked to ${email} logged in successfully`,
+                token, user
             });
         } else {
             return res.status(400).json({
