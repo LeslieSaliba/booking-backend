@@ -1,6 +1,7 @@
 const connection = require('../config/database');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
+const { generateToken } = require('../extra/generateToken');
 require('dotenv').config();
 
 exports.createUser = async (req, res) => {
@@ -13,7 +14,7 @@ exports.createUser = async (req, res) => {
             throw new Error(`An error occured while adding user`);
         }
         const user = result[0];
-        const token = jwt.sign({ user }, process.env.SECRET_VALUE, { expiresIn: '12h' });
+        generateToken(user);
         res.status(200).json('User added successfully ', 'user: ', user, 'token: ', token);
     }
     catch (error) {
@@ -60,19 +61,17 @@ exports.login = async (req, res) => {
         const user = response[0];
         const passwordMatch = await bcrypt.compare(password, user.password);
 
-        if (passwordMatch) {
-            const token = jwt.sign(user, process.env.SECRET_VALUE, { expiresIn: '12h' });
-            res.status(200).json({
-                success: true,
-                message: `User linked to ${email} logged in successfully`,
-                token, user
-            });
-        } else {
+        if (!passwordMatch)
             return res.status(400).json({
                 success: false,
                 message: `Incorrect password for user linked to ${email}`,
             });
-        }
+        const token = generateToken(user);
+        res.status(200).json({
+            success: true,
+            message: `User linked to ${email} logged in successfully`, token, user
+        });
+
     } catch (error) {
         return res.status(400).json({
             success: false,
@@ -138,7 +137,7 @@ exports.switchToAdmin = async (req, res) => {
 const getUserInfo = async (ID) => {
     const query = `SELECT ID, fullName, email, role FROM users WHERE ID = ?;`;
     try {
-        const [response] = await connection.query(query, [ID]);
+        const [response] = await connection.promise().query(query, [ID]);
         return response;
     } catch (error) {
         return error;

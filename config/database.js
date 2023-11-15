@@ -63,19 +63,19 @@ connection.getConnection((err) => {
 //       console.error(`Error creating table events:`, error);
 //    });
 
-// const createReservation = `CREATE TABLE IF NOT EXISTS reservation (
+// const createReservations = `CREATE TABLE IF NOT EXISTS reservations (
 //    ID INT AUTO_INCREMENT PRIMARY KEY,
 //    eventID INT,
 //    userID INT,
 //    FOREIGN KEY (eventID) REFERENCES events(ID) ON DELETE CASCADE ON UPDATE CASCADE,
 //    FOREIGN KEY (userID) REFERENCES users(ID) ON DELETE CASCADE ON UPDATE CASCADE
 //     )`;
-// connection.promise().query(createReservation)
+// connection.promise().query(createReservations)
 //    .then(() => {
-//       console.log(`Table reservation has been created`);
+//       console.log(`Table reservations has been created`);
 //    })
 //    .catch((error) => {
-//       console.error(`Error creating table reservation:`, error);
+//       console.error(`Error creating table reservations:`, error);
 //    });
 
 module.exports = connection;
