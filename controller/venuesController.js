@@ -22,18 +22,18 @@ exports.createVenue = async (req, res) => {
     const query = `INSERT INTO venues (name, description, capacity, image, address) VALUES (?, ?, ?, ?, ?);`;
     try {
         const imageURL = await imageUploader(req.file);
-        const [response] = await connection.promise().query(query, [
+        const [result] = await connection.promise().query(query, [
             name,
             description,
             capacity,
             imageURL,
             address,
         ]);
-        const [data] = await getVenueInfo(response.insertId);
+        const [venue] = await getVenueInfo(result.insertId);
         res.status(200).json({
             success: true,
             message: `Venue added successfully`,
-            data: data,
+            data: venue,
         });
     } catch (error) {
         return res.status(400).json({
@@ -44,26 +44,50 @@ exports.createVenue = async (req, res) => {
     }
 };
 
-exports.getAllVenues = async (req, res) => {
+exports.getAllVenues = async (_, res) => {
+    const query = "SELECT * FROM venues";
     try {
-        const query = "SELECT * FROM venues";
         const [result] = await connection.promise().query(query);
-        res.status(200).json(result);
+        if (!result.length)
+            return res.status(400).json({
+                success: false,
+                message: `There are no venues yet.`
+            });
+        return res.status(200).json({
+            success: true,
+            message: `All venues retrieved successfully`,
+            data: result,
+        });
     } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: "An error occurred while getting all venues" });
+        return res.status(400).json({
+            success: false,
+            message: `An error occurred while getting all venues`,
+            error: error.message,
+        });
     }
 };
 
 exports.getVenueById = async (req, res) => {
+    const { ID } = req.params;
     try {
-        const ID = req.params.ID;
-        const query = `SELECT * FROM venues WHERE ID= ${ID}`;
-        const [result] = await connection.promise().query(query);
-        res.status(200).json(result);
+        const result = await getVenueInfo(ID);
+        if (!result.length)
+            return res.status(400).json({
+                success: false,
+                message: `Couldn't find any venue with ID ${ID}`
+            });
+        return res.status(200).json({
+            success: true,
+            message: `Venue with ID ${ID} retrieved successfully`,
+            data: result,
+        });
     }
     catch (error) {
-        res.status(500).json({ error: 'An error occured while getting venue by ID' });
+        return res.status(400).json({
+            success: false,
+            message: `An error occured while getting venue with ID ${ID}`,
+            error: error.message,
+        });
     }
 }
 
@@ -94,8 +118,7 @@ exports.updateVenue = async (req, res) => {
         } else {
             imageURL = image;
         }
-        console.log(imageURL);
-        const [response] = await connection.promise().query(query, [
+        const [result] = await connection.promise().query(query, [
             name,
             description,
             capacity,
@@ -103,11 +126,11 @@ exports.updateVenue = async (req, res) => {
             address,
             ID,
         ]);
-        const data = await getVenueInfo(ID);
+        const venue = await getVenueInfo(ID);
         res.status(200).json({
             success: true,
             message: `Venue with ID ${ID} updated successfully`,
-            data: data[0],
+            data: venue[0],
         });
     } catch (error) {
         return res.status(400).json({
@@ -119,23 +142,34 @@ exports.updateVenue = async (req, res) => {
 };
 
 exports.deleteVenue = async (req, res) => {
-    const ID = req.params.ID;
+    const { ID } = req.params;
+    const query = `DELETE FROM venues WHERE ID=?`;
     try {
-        const query = `DELETE FROM venues WHERE ID=${ID}`;
-        const [result] = await connection.promise().query(query);
-        res.status(200).json(result);
+        const [result] = await connection.promise().query(query, [ID]);
+        if (!result.affectedRows)
+            return res.status(400).json({
+                success: false,
+                message: `Couldn't find any venue with ID ${ID}`,
+            });
+        return res.status(200).json({
+            success: true,
+            message: `Venue with ID ${ID} deleted successfully`,
+        });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'An error occured while deleting venue' });
+        return res.status(400).json({
+            success: false,
+            message: `An error occured while deleting venue with ID ${ID}`,
+            error: error.message,
+        });
     }
 };
 
 const getVenueInfo = async (ID) => {
     const query = `SELECT * FROM venues WHERE ID = ?;`;
     try {
-        const [response] = await connection.promise().query(query, [ID]);
-        return response;
+        const [result] = await connection.promise().query(query, [ID]);
+        return result;
     } catch (error) {
-        return error;
+        return error.message;
     }
 };

@@ -5,44 +5,71 @@ const { generateToken } = require('../extra/generateToken');
 require('dotenv').config();
 
 exports.createUser = async (req, res) => {
+    const { fullName, email, password } = req.body;
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const query = `INSERT INTO users (fullName, email, password) VALUES ('${fullName}','${email}','${hashedPassword}')`;
     try {
-        const { fullName, email, password } = req.body;
-        const hashedPassword = await bcrypt.hash(password, 10);
-        const query = `INSERT INTO users (fullName, email, password) VALUES ('${fullName}','${email}','${hashedPassword}')`;
         const [result] = await connection.promise().query(query);
         if (!result) {
             throw new Error(`An error occured while adding user`);
         }
         const user = result[0];
-        generateToken(user);
+        const token = generateToken(user);
         res.status(200).json('User added successfully ', 'user: ', user, 'token: ', token);
     }
     catch (error) {
-        console.error('An error occured while adding user', error);
-        res.status(500).json({ error: 'Server error' });
+        return res.status(400).json({
+            success: false,
+            message: `An error occured while adding user`,
+            error: error.message,
+        });
     }
 }
 
-exports.getAllUsers = async (req, res) => {
+exports.getAllUsers = async (_, res) => {
+    const query = "SELECT ID, fullName, email, role FROM users";
     try {
-        const query = "SELECT * FROM users";
         const [result] = await connection.promise().query(query);
-        res.status(200).json(result);
+        if (!result.length)
+            return res.status(400).json({
+                success: false,
+                message: `There are no users yet.`
+            });
+        res.status(200).json({
+            success: true,
+            message: `All users retrieved successfully `,
+            data: result,
+        });
     } catch (error) {
-        console.log(error);
-        res.status(500).json({ error: "An error occurred while getting all users" });
+        return res.status(400).json({
+            success: false,
+            message: `An error occurred while getting all users`,
+            error: error.message,
+        });
     }
 };
 
 exports.getUserById = async (req, res) => {
+    const { ID } = req.params;
     try {
-        const ID = req.params.ID;
-        const query = `SELECT * FROM users WHERE ID= ${ID}`;
-        const [result] = await connection.promise().query(query);
-        res.status(200).json(result);
+        const [result] = await getUserInfo(ID);
+        if (!result.length)
+            return res.status(400).json({
+                success: false,
+                message: `There is no user with ID ${ID} (yet).`
+            });
+        return res.status(200).json({
+            success: true,
+            message: `User of with ${ID} retrieved successfully`,
+            data: result[0],
+        });
     }
     catch (error) {
-        res.status(500).json({ error: 'An error occured while getting user by ID' });
+        return res.status(400).json({
+            success: false,
+            message: `An error occured while getting user by ID ${ID}`,
+            error: error.message,
+        });
     }
 }
 
@@ -50,15 +77,15 @@ exports.login = async (req, res) => {
     const { email, password } = req.body;
     const query = `SELECT * FROM users WHERE email = ?;`;
     try {
-        const [response] = await connection.promise().query(query, [email]);
+        const [result] = await connection.promise().query(query, [email]);
 
-        if (!response.length)
+        if (!result.length)
             return res.status(400).json({
                 success: false,
                 message: `Couldn't find any user linked to ${email} `,
             });
 
-        const user = response[0];
+        const user = result[0];
         const passwordMatch = await bcrypt.compare(password, user.password);
 
         if (!passwordMatch)
@@ -82,57 +109,80 @@ exports.login = async (req, res) => {
 };
 
 exports.updateUser = async (req, res) => {
-    const ID = req.params.ID;
-    const { email: email, password: password } = req.body;
+    const { ID } = req.params;
+    const { email, password } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
+    const query = `UPDATE users SET email = '${email}', password = '${hashedPassword}' WHERE ID=${ID}`;
     try {
-        const query = ` UPDATE users SET email = '${email}', password = '${hashedPassword}' WHERE ID=${ID}`;
         const [result] = await connection.promise().query(query);
-        res.status(200).json(result);
+        // res.status(200).json(result);
+        if (!result.affectedRows)
+            return res.status(400).json({
+                success: false,
+                message: `Couldn't find any user with ID ${ID}`,
+            });
+        const user = await getUserInfo(ID);
+        res.status(200).json({
+            success: true,
+            message: `User with ID ${ID} updated successfully`,
+            data: user[0],
+        });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'An error occured while updating user' });
+        return res.status(400).json({
+            success: false,
+            message: `An error occured while updating user with ID ${ID}`,
+            error: error.message,
+        });
     }
 };
 
 exports.deleteUser = async (req, res) => {
-    const ID = req.params.ID;
+    const { ID } = req.params;
+    const query = `DELETE FROM users WHERE ID=?`;
     try {
-        const query = `DELETE FROM users WHERE ID=${ID}`;
-        const [result] = await connection.promise().query(query);
-        res.status(200).json(result);
+        const [result] = await connection.promise().query(query, [ID]);
+        if (!result.affectedRows)
+            return res.status(400).json({
+                success: false,
+                message: `Couldn't find any user with ID ${ID}`,
+            });
+        return res.status(200).json({
+            success: true,
+            message: `User with ID ${ID} deleted successfully`,
+        });
     } catch (error) {
-        console.error(error);
-        res.status(500).json({ error: 'An error occured while deleting user' });
+        return res.status(400).json({
+            success: false,
+            message: `An error occured while deleting user with ID ${ID}`,
+            error: error.message,
+        });
     }
 };
 
 exports.switchToAdmin = async (req, res) => {
     const { ID } = req.params;
     const query = `UPDATE users SET role = 'admin' WHERE ID = ?;`;
-
     try {
-        const [response] = await connection.promise().query(query, [ID]);
-        if (!response.affectedRows)
+        const [result] = await connection.promise().query(query, [ID]);
+        if (!result.affectedRows)
             return res.status(400).json({
                 success: false,
-                message: `User with ID = ${ID} not found`,
+                message: `Couldn't find any user with ID ${ID}`,
             });
-        const data = await getUserInfo(ID);
+        const user = await getUserInfo(ID);
         res.status(200).json({
             success: true,
-            message: `User with ID = ${ID} switched to admin successfully`,
-            data: data[0],
+            message: `User with ID ${ID} switched to admin successfully`,
+            data: user[0],
         });
     } catch (error) {
         return res.status(400).json({
             success: false,
-            message: `Unable to switch to admin for user with ID = ${ID}`,
+            message: `An error occured while switching user with ID ${ID} to admin`,
             error: error.message,
         });
     }
 };
-
 
 const getUserInfo = async (ID) => {
     const query = `SELECT ID, fullName, email, role FROM users WHERE ID = ?;`;
