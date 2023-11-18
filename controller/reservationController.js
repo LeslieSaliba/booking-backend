@@ -1,13 +1,46 @@
 const connection = require('../config/database');
 const { getUserById } = require('./usersController');
+const { getEventById } = require('./eventsController');
 
 exports.createReservation = async (req, res) => {
     const { eventID, userID } = req.body;
-    const query = `INSERT INTO reservations (eventID, userID) VALUES (${eventID},${userID})`;
+    const userQuery = `SELECT * FROM users WHERE ID = ?`;
+    const eventQuery = `SELECT * FROM events WHERE ID = ?`;
+    const reservationQuery = `INSERT INTO reservations (eventID, userID) VALUES (?, ?)`;
+    const duplicateReservationQuery = `SELECT * FROM reservations WHERE eventID = ? AND userID = ?`;
+
     try {
-        const [result] = await connection.promise().query(query);
+        const [userResult] = await connection.promise().query(userQuery, [userID]);
+        const [eventResult] = await connection.promise().query(eventQuery, [eventID]);
+
+        if (!userResult.length && !eventResult.length) {
+            return res.status(400).json({
+                success: false,
+                message: `There is no user with ID ${userID} and no event with ID ${eventID}`,
+            });
+        } else if (!userResult.length) {
+            return res.status(400).json({
+                success: false,
+                message: `There is no user with ID ${userID}`,
+            });
+        } else if (!eventResult.length) {
+            return res.status(400).json({
+                success: false,
+                message: `There is no event with ID ${eventID}`,
+            });
+        }
+
+        const [duplicateReservation] = await connection.promise().query(duplicateReservationQuery, [eventID, userID]);
+        if (duplicateReservation.length) {
+            return res.status(400).json({
+                success: false,
+                message: `There is already a reservation for user with ID ${userID} in event with ID ${eventID}`,
+            });
+        }
+
+        const [result] = await connection.promise().query(reservationQuery, [eventID, userID]);
         const [reservation] = await getReservationInfo(result.insertId);
-        res.status(200).json({
+        return res.status(200).json({
             success: true,
             message: `Reservation added successfully`,
             data: reservation,
@@ -15,22 +48,11 @@ exports.createReservation = async (req, res) => {
     } catch (error) {
         return res.status(400).json({
             success: false,
-            message: `An error occured while adding reservation for the user with ID ${userID} in event with ID ${eventID}`,
+            message: `An error occurred while adding reservation for the user with ID ${userID} in event with ID ${eventID}`,
             error: error.message,
         });
     }
-}
-
-// exports.getAllReservations = async (req, res) => {
-//     try {
-//         const query = "SELECT * FROM reservation";
-//         const [result] = await connection.promise().query(query);
-//         res.status(200).json(result);
-//     } catch (error) {
-//         console.log(error);
-//         res.status(500).json({ error: "An error occurred while getting all reservations" });
-//     }
-// };
+};
 
 exports.getAllReservations = async (_, res) => {
     const query = `SELECT reservations.ID AS reservationID, reservations.userID, users.fullName, users.email, users.role, reservations.eventID, events.title, events.date, events.ticketPrice, events.description, events.venueID, venues.name, venues.description,venues.capacity,venues.image,venues.address
@@ -85,31 +107,35 @@ exports.getReservationById = async (req, res) => {
 
 exports.getReservationsByUser = async (req, res) => {
     const ID = req.params.ID;
-    const queryUser = getUserById(ID);
-    const query = `SELECT reservations.ID AS reservationID, reservations.userID, users.fullName, users.email, users.role, reservations.eventID, events.title, events.date, events.ticketPrice, events.description, events.venueID, venues.name, venues.description,venues.capacity,venues.image,venues.address
+    const queryUser = `SELECT * FROM users WHERE ID = ?`;
+    // const queryUser = getUserById(ID);
+    const reservationsQuery = `SELECT reservations.ID AS reservationID, reservations.userID, users.fullName, users.email, users.role, reservations.eventID, events.title, events.date, events.ticketPrice, events.description, events.venueID, venues.name, venues.description,venues.capacity,venues.image,venues.address
                     FROM reservations
                     INNER JOIN users ON users.ID = reservations.userID
                     INNER JOIN events ON events.ID = reservations.eventID
                     INNER JOIN venues ON venues.ID = events.venueID
                     WHERE reservations.userID = ?;`;
+
     try {
-        // const user = await connection.promise().query(queryUser, [ID]);
-        // if (!user || user.length === 0) {
-        //     return res.status(400).json({
-        //         success: false,
-        //         message: `There is no user with ID ${ID}`
-        //     });
-        // }
-        const [result] = await connection.promise().query(query, [ID]);
-        if (!result.length)
-            res.status(400).json({
+        const userResult = await connection.promise().query(queryUser, [ID]);
+        if (!userResult[0].length) {
+            return res.status(400).json({
                 success: false,
+                message: `There is no user with ID ${ID}`
+            });
+        }
+
+        const [reservationsResult] = await connection.promise().query(reservationsQuery, [ID]);
+        if (!reservationsResult.length) {
+            return res.status(200).json({
+                success: true,
                 message: `There are no reservations for user with ID ${ID} yet.`
             });
+        }
         return res.status(200).json({
             success: true,
             message: `All reservations for user with ID ${ID} retrieved successfully `,
-            data: result,
+            data: reservationsResult,
         });
     } catch (error) {
         return res.status(400).json({
@@ -122,23 +148,41 @@ exports.getReservationsByUser = async (req, res) => {
 
 exports.getReservationsByEvent = async (req, res) => {
     const { ID } = req.params;
-    const query = `SELECT reservations.ID AS reservationID, reservations.userID, users.fullName, users.email, users.role, reservations.eventID, events.title, events.date, events.ticketPrice, events.description, events.venueID, venues.name, venues.description,venues.capacity,venues.image,venues.address
+    const eventQuery = `SELECT * FROM events WHERE ID = ?;`;
+    // const eventQuery = getEventById(ID);
+    const reservationsQuery = `SELECT reservations.ID AS reservationID, reservations.userID, users.fullName, users.email, users.role, reservations.eventID, events.title, events.date, events.ticketPrice, events.description, events.venueID, venues.name, venues.description,venues.capacity,venues.image,venues.address
                       FROM reservations
                       INNER JOIN users ON users.ID = reservations.userID
                       INNER JOIN events ON events.ID = reservations.eventID
                       INNER JOIN venues ON venues.ID = events.venueID
                       WHERE reservations.eventID = ?;`;
+
     try {
-        const [result] = await connection.promise().query(query, [ID]);
-        res.status(200).json({
+        const [eventResult] = await connection.promise().query(eventQuery, [ID]);
+        if (!eventResult.length) {
+            return res.status(400).json({
+                success: false,
+                message: `There are no events with ID ${ID}.`
+            });
+        }
+
+        const [reservationsResult] = await connection.promise().query(reservationsQuery, [ID]);
+        if (!reservationsResult.length) {
+            return res.status(200).json({
+                success: true,
+                message: `There are no reservations for event with ID ${ID}.`
+            });
+        }
+
+        return res.status(200).json({
             success: true,
             message: `All reservations for event with ID ${ID} retrieved successfully `,
-            data: result,
+            data: reservationsResult,
         });
     } catch (error) {
         return res.status(400).json({
             success: false,
-            message: `An error occurred while getting all reservations by event ID ${ID}`,
+            message: `An error occurred while getting reservations by event ID ${ID}`,
             error: error.message,
         });
     }
@@ -147,22 +191,59 @@ exports.getReservationsByEvent = async (req, res) => {
 exports.updateReservation = async (req, res) => {
     const ID = req.params.ID;
     const { eventID, userID } = req.body;
+    const userQuery = `SELECT * FROM users WHERE ID = ?`;
+    const eventQuery = `SELECT * FROM events WHERE ID = ?`;
+    const duplicateReservationQuery = `SELECT * FROM reservations WHERE eventID = ? AND userID = ?`;
+
     try {
+        const [userResult] = await connection.promise().query(userQuery, [userID]);
+        const [eventResult] = await connection.promise().query(eventQuery, [eventID]);
+
+        if (!userResult.length && !eventResult.length) {
+            return res.status(400).json({
+                success: false,
+                message: `There is no user with ID ${userID} and no event with ID ${eventID}`,
+            });
+        }
+
+        if (!userResult.length) {
+            return res.status(400).json({
+                success: false,
+                message: `There is no user with ID ${userID}`,
+            });
+        }
+
+        if (!eventResult.length) {
+            return res.status(400).json({
+                success: false,
+                message: `There is no event with ID ${eventID}`,
+            });
+        }
+
+        const [duplicateReservation] = await connection.promise().query(duplicateReservationQuery, [eventID, userID]);
+        if (duplicateReservation.length) {
+            return res.status(400).json({
+                success: false,
+                message: `There is already a reservation for user with ID ${userID} in event with ID ${eventID}`,
+            });
+        }
+
         const query = `UPDATE reservations SET eventID=${eventID}, userID=${userID} WHERE ID=${ID}`;
         const [result] = await connection.promise().query(query);
 
-        if (!result.affectedRows)
+        if (!result.affectedRows) {
             return res.status(400).json({
                 success: false,
                 message: `Couldn't find any reservation with ID ${ID}`,
             });
+        }
+
         const reservation = await getReservationInfo(ID);
         res.status(200).json({
             success: true,
             message: `Reservation with ID ${ID} updated successfully`,
             data: reservation[0],
         });
-
     } catch (error) {
         return res.status(400).json({
             success: false,
@@ -171,6 +252,7 @@ exports.updateReservation = async (req, res) => {
         });
     }
 };
+
 
 exports.deleteReservation = async (req, res) => {
     const ID = req.params.ID;
