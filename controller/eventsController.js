@@ -2,11 +2,43 @@ const connection = require('../config/database');
 
 exports.createEvent = async (req, res) => {
     const { title, date, ticketPrice, description, venueID } = req.body;
+    const missingFields = [];
+    if (!title) missingFields.push("title");
+    if (!date) missingFields.push("date");
+    if (ticketPrice === undefined || isNaN(ticketPrice)) missingFields.push("ticketPrice");
+    if (!description) missingFields.push("description");
+    if (!venueID || isNaN(venueID)) missingFields.push("venueID");
+    if (missingFields.length > 0) {
+        const errorMessage = missingFields.map(field => {
+            if (field === "ticketPrice") {
+                return "ticketPrice should be a number";
+            } else if (field === "venueID") {
+                return "venueID should be a number";
+            }
+            return `please provide ${field}`;
+        }).join(', ');
+
+        return res.status(400).json({
+            success: false,
+            message: `Please correct the following: ${errorMessage}`,
+        });
+    }
+
     const query = `INSERT INTO events (title, date, ticketPrice, description, venueID) VALUES ('${title}','${date}',${ticketPrice},'${description}', ${venueID})`;
+    const venueQuery = `SELECT * FROM venues WHERE ID = ?`;
+
     try {
+        const [venueResult] = await connection.promise().query(venueQuery, [venueID]);
+        if (!venueResult.length) {
+            return res.status(400).json({
+                success: false,
+                message: `There is no venue with ID ${venueID}`,
+            });
+        }
+
         const [result] = await connection.promise().query(query);
         const data = await getEventInfo(result.insertId);
-        if (!Array.isArray(data)) throw new Error(`An error occured while adding event.`);
+        if (!Array.isArray(data)) throw new Error(`An error occurred while adding event.`);
         return res.status(200).json({
             success: true,
             message: `Event added successfully.`,
@@ -15,7 +47,7 @@ exports.createEvent = async (req, res) => {
     } catch (error) {
         return res.status(400).json({
             success: false,
-            message: `An error occured while adding event.`,
+            message: `An error occurred while adding event.`,
             error: error.message,
         });
     }
@@ -71,7 +103,39 @@ exports.updateEvent = async (req, res) => {
     const { ID } = req.params;
     const { title, date, ticketPrice, description, venueID } = req.body;
     const query = `UPDATE events SET title = ?, date = ?, ticketPrice = ?, description = ?, venueID = ? WHERE ID = ?`;
+    const venueQuery = `SELECT * FROM venues WHERE ID = ?`;
+
+    const missingFields = [];
+    if (!title) missingFields.push("title");
+    if (!date) missingFields.push("date");
+    if (ticketPrice === undefined || isNaN(ticketPrice)) missingFields.push("ticketPrice");
+    if (!description) missingFields.push("description");
+    if (!venueID || isNaN(venueID)) missingFields.push("venueID");
+    if (missingFields.length > 0) {
+        const errorMessage = missingFields.map(field => {
+            if (field === "ticketPrice") {
+                return "ticketPrice should be a number";
+            } else if (field === "venueID") {
+                return "venueID should be a number";
+            }
+            return `please provide ${field}`;
+        }).join(', ');
+
+        return res.status(400).json({
+            success: false,
+            message: `Please correct the following: ${errorMessage}`,
+        });
+    }
+
     try {
+        const [venueResult] = await connection.promise().query(venueQuery, [venueID]);
+        if (!venueResult.length) {
+            return res.status(400).json({
+                success: false,
+                message: `There is no venue with ID ${venueID}`,
+            });
+        }
+
         const [response] = await connection.promise().query(query, [
             title,
             date,

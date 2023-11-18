@@ -2,24 +2,32 @@ const connection = require('../config/database');
 const cloudinary = require('../config/cloudinary');
 const { imageUploader } = require('../extra/imageUploader');
 
-// exports.createVenue = async (req, res) => {
-//     try {
-//         const { name, description, capacity, address } = req.body;
-//         const b64 = req.file.buffer.toString('base64');
-//         let image = 'data:' + req.file.mimetype + ';base64,' + b64;
-//         const url = await cloudinary.uploader.upload(image, { folder: 'venues' })
-//         const query = `INSERT INTO venues (name, description, capacity, image, address) VALUES ('${name}','${description}',${capacity},'${url.secure_url}', '${address}')`;
-//         const [result] = await connection.promise().query(query);
-//         res.status(200).json('Venue added successfully');
-//     } catch (error) {
-//         console.error('An error occured while adding venue', error);
-//         res.status(500).json({ error: 'Server error' });
-//     }
-// }
-
 exports.createVenue = async (req, res) => {
     const { name, description, capacity, address } = req.body;
     const query = `INSERT INTO venues (name, description, capacity, image, address) VALUES (?, ?, ?, ?, ?);`;
+
+    const missingFields = [];
+    if (!name) missingFields.push("name");
+    if (!description) missingFields.push("description");
+    if (!capacity || isNaN(capacity)) missingFields.push("capacity");
+    if (!req.file || !req.file.buffer) {
+        missingFields.push("image");
+    }
+    if (!address) missingFields.push("address");
+    if (missingFields.length > 0) {
+        const errorMessage = missingFields.map(field => {
+            if (field === "capacity") {
+                return "capacity should be a number";
+            }
+            return `please provide ${field}`;
+        }).join(', ');
+
+        return res.status(400).json({
+            success: false,
+            message: `Please correct the following: ${errorMessage}`,
+        });
+    }
+
     try {
         const imageURL = await imageUploader(req.file);
         const [result] = await connection.promise().query(query, [
@@ -29,6 +37,7 @@ exports.createVenue = async (req, res) => {
             imageURL,
             address,
         ]);
+
         const [venue] = await getVenueInfo(result.insertId);
         res.status(200).json({
             success: true,
@@ -38,7 +47,7 @@ exports.createVenue = async (req, res) => {
     } catch (error) {
         return res.status(400).json({
             success: false,
-            message: `An error occured while adding venue`,
+            message: `An error occurred while adding venue`,
             error: error.message,
         });
     }
@@ -91,27 +100,34 @@ exports.getVenueById = async (req, res) => {
     }
 }
 
-// exports.updateVenue = async (req, res) => {
-//     const ID = req.params.ID;
-//     const { name, description, capacity, image, address } = req.body;
-//     try {
-//         const b64 = req.file.buffer.toString('base64');
-//         let image = 'data:' + req.file.mimetype + ';base64,' + b64;
-//         const url = await cloudinary.uploader.upload(image, { folder: 'venues' })
-//         const query = ` UPDATE venues SET name ='${name}', description = '${description}', capacity = '${capacity}', image='${url.secure_url}', address='${address}' WHERE ID=${ID}`;
-//         const [result] = await connection.promise().query(query);
-//         res.status(200).json(result);
-//     } catch (error) {
-//         console.error(error);
-//         res.status(500).json({ error: 'An error occured while updating venue' });
-//     }
-// };
-
 exports.updateVenue = async (req, res) => {
     const { ID } = req.params;
     const { name, description, capacity, image, address } = req.body;
     const query = `UPDATE venues SET name = ?, description = ?, capacity = ?, image = ?, address = ? WHERE ID = ?;`;
     let imageURL = '';
+
+    const missingFields = [];
+    if (!name) missingFields.push("name");
+    if (!description) missingFields.push("description");
+    if (!capacity || isNaN(capacity)) missingFields.push("capacity");
+    if (!address) missingFields.push("address");
+    if (!req.file || !req.file.buffer) {
+        missingFields.push("image");
+    }
+    if (missingFields.length > 0) {
+        const errorMessage = missingFields.map(field => {
+            if (field === "capacity") {
+                return "capacity should be a number";
+            }
+            return `please provide ${field}`;
+        }).join(', ');
+
+        return res.status(400).json({
+            success: false,
+            message: `Please correct the following: ${errorMessage}`,
+        });
+    }
+
     try {
         if (req.file) {
             imageURL = await imageUploader(req.file);
@@ -126,6 +142,7 @@ exports.updateVenue = async (req, res) => {
             address,
             ID,
         ]);
+
         const venue = await getVenueInfo(ID);
         res.status(200).json({
             success: true,
@@ -135,7 +152,7 @@ exports.updateVenue = async (req, res) => {
     } catch (error) {
         return res.status(400).json({
             success: false,
-            message: `An error occured while updating venue with ID ${ID}`,
+            message: `An error occurred while updating venue with ID ${ID}`,
             error: error.message,
         });
     }

@@ -4,6 +4,18 @@ const { getEventById } = require('./eventsController');
 
 exports.createReservation = async (req, res) => {
     const { eventID, userID } = req.body;
+
+    const missingFields = [];
+    if (!eventID || isNaN(eventID)) missingFields.push("eventID should be a number");
+    if (!userID || isNaN(userID)) missingFields.push("userID should be a number");
+    if (missingFields.length > 0) {
+        const errorMessage = missingFields.join(', ');
+        return res.status(400).json({
+            success: false,
+            message: `Please correct the following: ${errorMessage}`,
+        });
+    }
+
     const userQuery = `SELECT * FROM users WHERE ID = ?`;
     const eventQuery = `SELECT * FROM events WHERE ID = ?`;
     const reservationQuery = `INSERT INTO reservations (eventID, userID) VALUES (?, ?)`;
@@ -191,6 +203,18 @@ exports.getReservationsByEvent = async (req, res) => {
 exports.updateReservation = async (req, res) => {
     const ID = req.params.ID;
     const { eventID, userID } = req.body;
+
+    const missingFields = [];
+    if (!eventID || isNaN(eventID)) missingFields.push("eventID should be a number");
+    if (!userID || isNaN(userID)) missingFields.push("userID should be a number");
+    if (missingFields.length > 0) {
+        const errorMessage = missingFields.join(', ');
+        return res.status(400).json({
+            success: false,
+            message: `Please correct the following: ${errorMessage}`,
+        });
+    }
+
     const userQuery = `SELECT * FROM users WHERE ID = ?`;
     const eventQuery = `SELECT * FROM events WHERE ID = ?`;
     const duplicateReservationQuery = `SELECT * FROM reservations WHERE eventID = ? AND userID = ?`;
@@ -252,7 +276,6 @@ exports.updateReservation = async (req, res) => {
         });
     }
 };
-
 
 exports.deleteReservation = async (req, res) => {
     const ID = req.params.ID;
