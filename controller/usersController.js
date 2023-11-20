@@ -6,16 +6,42 @@ require('dotenv').config();
 
 exports.createUser = async (req, res) => {
     const { fullName, email, password } = req.body;
-    const hashedPassword = await bcrypt.hash(password, 10);
-    const query = `INSERT INTO users (fullName, email, password) VALUES ('${fullName}','${email}','${hashedPassword}')`;
+
+    const missingFields = [];
+    if (!fullName) missingFields.push("fullName");
+    if (!email) missingFields.push("email");
+    if (!password) missingFields.push("password");
+
+    if (missingFields.length > 0) {
+        return res.status(400).json({
+            success: false,
+            message: `Please provide: ${missingFields.join(', ')}`,
+        });
+    }
+
+    const duplicateEmailnQuery = `SELECT * FROM users WHERE email = ?`;
+
     try {
-        const [result] = await connection.promise().query(query);
+        const [duplicateEmail] = await connection.promise().query(duplicateEmailnQuery, [email]);
+        if (duplicateEmail.length > 0) {
+            return res.status(400).json({
+                success: false,
+                message: `Email is already linked to another account`,
+            });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10);
+        const query = `INSERT INTO users (fullName, email, password) VALUES (?, ?, ?)`;
+        const [result] = await connection.promise().query(query, [fullName, email, hashedPassword]);
         if (!result) {
             throw new Error(`An error occured while adding user`);
         }
-        const user = result[0];
-        const token = generateToken(user);
-        res.status(200).json('User added successfully ', 'user: ', user, 'token: ', token);
+        const [data] = await getUserInfo(result.insertId);
+        res.status(200).json({
+            success: true,
+            message: `User registered successfully`,
+            data,
+        });
     }
     catch (error) {
         return res.status(400).json({
@@ -93,10 +119,12 @@ exports.login = async (req, res) => {
                 success: false,
                 message: `Incorrect password for user linked to ${email}`,
             });
-        const token = generateToken(user);
+        const token = generateToken(user.ID, user.role);
         res.status(200).json({
             success: true,
-            message: `User linked to ${email} logged in successfully`, token, user
+            message: `User linked to ${email} logged in successfully`,
+            token,
+            user
         });
 
     } catch (error) {
@@ -113,9 +141,20 @@ exports.updateUser = async (req, res) => {
     const { email, password } = req.body;
     const hashedPassword = await bcrypt.hash(password, 10);
     const query = `UPDATE users SET email = '${email}', password = '${hashedPassword}' WHERE ID=${ID}`;
+    const duplicateEmailQuery = `SELECT * FROM users WHERE email = ? AND ID <> ?`;
+
     try {
+        if (email) {
+            const [duplicateEmail] = await connection.promise().query(duplicateEmailQuery, [email, ID]);
+            if (duplicateEmail.length > 0) {
+                return res.status(400).json({
+                    success: false,
+                    message: `Email is already linked to another account`,
+                });
+            }
+        }
+
         const [result] = await connection.promise().query(query);
-        // res.status(200).json(result);
         if (!result.affectedRows)
             return res.status(400).json({
                 success: false,
